@@ -15,7 +15,7 @@ from .base import IOBackend
 from will.utils import Bunch, UNSURE_REPLIES, clean_for_pickling
 from will.mixins import SleepMixin, StorageMixin
 from multiprocessing import Process
-from will.abstractions import Event, Message, Person, Channel
+from will.abstractions import Event, Message, Person, Channel, Attachment
 from slackclient import SlackClient
 from slackclient.server import SlackConnectionError
 
@@ -28,6 +28,49 @@ class SlackMarkdownConverter(MarkdownConverter):
 
     def convert_strong(self, el, text):
         return '*%s*' % text if text else ''
+
+
+class SlackAttachmentConverter:
+    """ This takes an Attachment object or list of Attachment objects and renders
+    a Slack ready Message Attachment JSON payload using the render() method. """
+
+    def __init__(self, attachments):
+        self.attachments = attachments
+
+    def render(self):
+        """ Builds a json payload for Slack Rich Format Message Attachments.
+         It takes either a single Attachment object or a list or Attachment objects."""
+        attachments = ""
+        try:
+            for a in self.attachments:
+                attachments += str(
+                    [
+                        {
+                            "fallback": a.fallback,
+                            "color": a.color,
+                            "text": a.text,
+                            "actions": a.actions,
+                            "footer": a.footer,
+                            "footer_icon": a.footer_icon,
+                        }
+                    ]
+                )
+        except AttributeError:
+            attachments += str(
+                [
+                    {
+                        "fallback": self.attachments.fallback,
+                        "color": self.attachments.color,
+                        "text": self.attachments.text,
+                        "actions": self.attachments.actions,
+                        "footer": self.attachments.footer,
+                        "footer_icon": self.attachments.footer_icon,
+                    }
+                ]
+            )
+
+        finally:
+            return attachments
 
 
 class SlackBackend(IOBackend, SleepMixin, StorageMixin):
@@ -46,6 +89,19 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
         for k, c in self.channels.items():
             if c.name.lower() == name.lower() or c.id.lower() == name.lower():
                 return c
+            # We need to check if a user id was passed as a channel
+            # and get the correct IM channel if it was.
+            elif name.startswith('U') or name.startswith('W'):
+                return self.get_im_channel(name)
+
+    def get_im_channel(self, user_id):
+        logging.info('user_id : {}'.format(user_id))
+        con = self.client.api_call("conversations.open", users=user_id)
+        logging.info(con)
+        if 'channel' in con:
+            return con['channel']['id']
+        # return self.client.api_call("im.open", user=user_id)['channel']['id']
+
 
     def normalize_incoming_event(self, event):
 
@@ -163,7 +219,7 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
                 event.content = SlackMarkdownConverter().convert(event.content)
 
             event.content = event.content.replace("&", "&amp;")
-            event.content = event.content.replace("\_", "_")
+            event.content = event.content.replace(r"\_", "_")
 
             kwargs = {}
             if "kwargs" in event:
@@ -228,7 +284,11 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
     def set_data_channel_and_thread(self, event, data={}):
         if "channel" in event:
             # We're coming off an explicit set.
-            channel_id = event.channel.id
+            try:
+                channel_id = event.channel.id
+            # This was a user ID so we will get channel from event.channel
+            except AttributeError:
+                channel_id = event.channel
         else:
             if "source_message" in event:
                 # Mentions that come back via self.say()
@@ -297,6 +357,9 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
         return data
 
     def send_message(self, event):
+        if event.content == '' or event.content is None:
+            # slack errors with no_text if empty message
+            return
         data = {}
         if hasattr(event, "kwargs"):
             data.update(event.kwargs)
@@ -313,10 +376,17 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
                     ]),
                 })
             elif "attachments" in event.kwargs:
-                data.update({
-                    "text": event.content,
-                    "attachments": json.dumps(event.kwargs["attachments"])
-                })
+
+                if isinstance(event.kwargs["attachments"], Attachment):
+                    data.update({
+                        "text": event.content,
+                        "attachments": SlackAttachmentConverter(event.kwargs["attachments"]).render()
+                    })
+                else:
+                    data.update({
+                        "text": event.content,
+                        "attachments": json.dumps(event.kwargs["attachments"])
+                    })
             else:
                 data.update({
                     "text": event.content,
@@ -545,3 +615,4 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
             self.rtm_thread.terminate()
             while self.rtm_thread.is_alive():
                 time.sleep(0.2)
+
