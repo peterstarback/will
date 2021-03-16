@@ -29,6 +29,15 @@ class SlackMarkdownConverter(MarkdownConverter):
     def convert_strong(self, el, text):
         return '*%s*' % text if text else ''
 
+    def convert_a(self, el, text):
+        href = el.get('href')
+        title = el.get('title')
+        if self.options['autolinks'] and text == href and not title:
+            # Shortcut syntax
+            return '<%s>' % href
+        title_part = ' "%s"' % title.replace('"', r'\"') if title else ''
+        return '<%s%s|%s>' % (href, title_part, text or '') if href else text or ''
+
 
 class SlackAttachmentConverter:
     """ This takes an Attachment object or list of Attachment objects and renders
@@ -106,12 +115,12 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
     def normalize_incoming_event(self, event):
 
         if (
-            "type" in event and
-            event["type"] == "message" and
-            ("subtype" not in event or event["subtype"] != "message_changed") and
+            "type" in event
+            and event["type"] == "message"
+            and ("subtype" not in event or event["subtype"] != "message_changed")
             # Ignore thread summary events (for now.)
             # TODO: We should stack these into the history.
-            ("subtype" not in event or ("message" in event and "thread_ts" not in event["message"]))
+            and ("subtype" not in event or ("message" in event and "thread_ts" not in event["message"]))
         ):
             # print("slack: normalize_incoming_event - %s" % event)
             # Sample of group message
@@ -257,9 +266,9 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
         if event.type in ["topic_change", ]:
             self.set_topic(event)
         elif (
-            event.type == "message.no_response" and
-            event.data.is_direct and
-            event.data.will_said_it is False
+            event.type == "message.no_response"
+            and event.data.is_direct
+            and event.data.will_said_it is False
         ):
             event.content = random.choice(UNSURE_REPLIES)
             self.send_message(event)
@@ -326,9 +335,9 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
                             "thread_ts": event.source_message.original_incoming_event["ts"]
                         })
                     elif (
-                        hasattr(event.source_message, "data") and
-                        hasattr(event.source_message.data, "original_incoming_event") and
-                        "ts" in event.source_message.data.original_incoming_event
+                        hasattr(event.source_message, "data")
+                        and hasattr(event.source_message.data, "original_incoming_event")
+                        and "ts" in event.source_message.data.original_incoming_event
                     ):
                         logging.error(
                             "Hm.  I was told to start a new thread, but while using .say(), instead of .reply().\n"
@@ -414,7 +423,7 @@ class SlackBackend(IOBackend, SleepMixin, StorageMixin):
         })
         if hasattr(event, "kwargs") and "html" in event.kwargs and event.kwargs["html"]:
             data.update({
-                "parse": "full",
+                "parse": "none",
             })
 
         headers = {'Accept': 'text/plain'}
