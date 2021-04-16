@@ -6,7 +6,7 @@ clint==0.3.7
 dill==0.2.1
 dnspython==1.15.0
 fuzzywuzzy==0.15.1
-Jinja2==2.7.3
+Jinja2==2.11.3
 Markdown==2.3.1
 MarkupSafe==0.23
 # Temporary fork of natural, until python 3 support is merged: https://github.com/tehmaze/natural/pull/13
