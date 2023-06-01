@@ -1,6 +1,6 @@
 APScheduler==2.1.2
 beautifulsoup4==4.6.0
-bottle==0.12.7
+bottle==0.12.20
 CherryPy==3.6.0
 clint==0.3.7
 dill==0.2.1
@@ -20,7 +20,7 @@ pyasn1==0.1.7
 pycrypto==2.6.1
 pygerduty==0.28
 pytz==2017.2
-PyYAML==3.13
+PyYAML==5.4
 regex==2017.9.23
 redis==2.10.6
 requests==2.20.0
