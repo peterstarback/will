@@ -28,3 +28,4 @@ six==1.10.0
 urllib3==1.24.3
 websocket-client==0.44.0
 slack_sdk
+aiohttp
