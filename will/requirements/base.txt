@@ -1,6 +1,6 @@
 APScheduler==2.1.2
 beautifulsoup4==4.6.0
-bottle==0.12.20
+bottle==0.12.7
 CherryPy==3.6.0
 clint==0.3.7
 dill==0.2.1
