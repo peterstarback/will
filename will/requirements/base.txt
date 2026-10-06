@@ -1,6 +1,7 @@
 APScheduler==2.1.2
 beautifulsoup4==4.6.0
-bottle==0.12.25
+bottle==0.12.25; python_version < "3.13"
+bottle==0.13.4; python_version >= "3.13"
 CherryPy==8.9.1
 clint==0.3.7
 dill==0.2.1
