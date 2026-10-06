@@ -1,6 +1,7 @@
 """Slack adapter for willbot
 """
 # pylint: disable=no-member
+import asyncio
 import json
 import logging
 import random
@@ -597,8 +598,16 @@ class SlackBackend(
     def client(self):
         "References/initializes our RTM client"
         if self._client is None:
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
             self._client = RTMClient(
-                token=settings.SLACK_API_TOKEN, run_async=False, auto_reconnect=True
+                token=settings.SLACK_API_TOKEN,
+                run_async=False,
+                auto_reconnect=True,
+                loop=loop,
             )
         return self._client
 
