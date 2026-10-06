@@ -30,7 +30,7 @@ regex==2017.9.23; python_version < "3.10"
 regex==2026.9.29; python_version >= "3.10"
 redis==5.0.0b1
 requests==2.20.0
-six==1.10.0
+six==1.17.0
 urllib3==1.24.3
 websocket-client==0.44.0
 slack_sdk
