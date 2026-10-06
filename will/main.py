@@ -5,6 +5,7 @@ import datetime
 from importlib import import_module
 import inspect
 import logging
+import multiprocessing
 from multiprocessing import Process, Queue
 import operator
 import os
@@ -151,6 +152,13 @@ class WillBot(
 
     @yappi_profile(return_callback=yappi_aggregate)
     def bootstrap(self):
+        if (
+            sys.version_info >= (3, 14)
+            and multiprocessing.get_start_method(allow_none=True) is None
+            and "fork" in multiprocessing.get_all_start_methods()
+        ):
+            multiprocessing.set_start_method("fork")
+
         print_head()
         self.load_config()
         self.bootstrap_storage_mixin()
