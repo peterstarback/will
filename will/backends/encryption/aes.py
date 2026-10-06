@@ -12,18 +12,20 @@ import traceback
 from will import settings
 from will.backends.encryption.base import WillBaseEncryptionBackend
 
-
 BS = 16
 key = hashlib.sha256(settings.SECRET_KEY.encode("utf-8")).digest()
 
 
 def pad(s):
-    s = "%s%s" % (s.decode("utf-8"), ((BS - len(s) % BS) * "~"))
-    return s
+    if isinstance(s, str):
+        s = s.encode("utf-8")
+    return s + ((BS - len(s) % BS) * b"~")
 
 
 def unpad(s):
-    while s.endswith(str.encode("~")):
+    if isinstance(s, str):
+        s = s.encode("utf-8")
+    while s.endswith(b"~"):
         s = s[:-1]
     return s
 
@@ -42,22 +44,28 @@ class AESEncryption(WillBaseEncryptionBackend):
             else:
                 return enc
         except:
-            logging.critical("Error preparing message for the wire: \n%s" % traceback.format_exc())
+            logging.critical(
+                "Error preparing message for the wire: \n%s" % traceback.format_exc()
+            )
             return None
 
     @classmethod
     def decrypt_from_b64(cls, raw_enc):
         try:
+            if isinstance(raw_enc, str):
+                raw_enc = raw_enc.encode("utf-8")
             if settings.ENABLE_INTERNAL_ENCRYPTION:
                 iv = raw_enc[:BS]
-                enc = raw_enc[BS+1:]
+                enc = raw_enc[BS + 1 :]
                 cipher = AES.new(key, AES.MODE_CBC, iv)
                 enc = unpad(cipher.decrypt(binascii.a2b_base64(enc)))
             return pickle.loads(binascii.a2b_base64(enc))
         except (KeyboardInterrupt, SystemExit):
             pass
         except:
-            logging.warn("Error decrypting.  Attempting unencrypted load to ease migration.")
+            logging.warn(
+                "Error decrypting.  Attempting unencrypted load to ease migration."
+            )
             return pickle.loads(binascii.a2b_base64(raw_enc))
 
 
