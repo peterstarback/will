@@ -2,7 +2,6 @@
 
 import copy
 import datetime
-import imp
 from importlib import import_module
 import inspect
 import logging
@@ -16,6 +15,7 @@ import sys
 import threading
 import time
 import traceback
+
 try:
     from yappi import profile as yappi_profile
 except:
@@ -28,16 +28,32 @@ import bottle
 from will import settings
 from will.backends import analysis, execution, generation, io_adapters
 from will.backends.io_adapters.base import Event
-from will.mixins import ScheduleMixin, StorageMixin, ErrorMixin, SleepMixin,\
-    PluginModulesLibraryMixin, EmailMixin, PubSubMixin
+from will.mixins import (
+    ScheduleMixin,
+    StorageMixin,
+    ErrorMixin,
+    SleepMixin,
+    PluginModulesLibraryMixin,
+    EmailMixin,
+    PubSubMixin,
+)
 from will.scheduler import Scheduler
-from will.utils import show_valid, show_invalid, error, warn, note, print_head, Bunch
-
+from will.utils import (
+    show_valid,
+    show_invalid,
+    error,
+    warn,
+    note,
+    print_head,
+    Bunch,
+    find_module_path,
+    load_source,
+)
 
 # Force UTF8
 if sys.version_info < (3, 0):
     reload(sys)  # noqa
-    sys.setdefaultencoding('utf8')
+    sys.setdefaultencoding("utf8")
 else:
     raw_input = input
 
@@ -63,8 +79,15 @@ def yappi_aggregate(func, stats):
         stats.save("will_profiles/%s" % fname, "callgrind")
 
 
-class WillBot(EmailMixin, StorageMixin, ScheduleMixin, PubSubMixin, SleepMixin,
-              ErrorMixin, PluginModulesLibraryMixin):
+class WillBot(
+    EmailMixin,
+    StorageMixin,
+    ScheduleMixin,
+    PubSubMixin,
+    SleepMixin,
+    ErrorMixin,
+    PluginModulesLibraryMixin,
+):
 
     def __init__(self, **kwargs):
         if "template_dirs" in kwargs:
@@ -72,11 +95,11 @@ class WillBot(EmailMixin, StorageMixin, ScheduleMixin, PubSubMixin, SleepMixin,
         if "plugin_dirs" in kwargs:
             warn("plugin_dirs is now depreciated")
 
-        log_level = getattr(settings, 'LOGLEVEL', logging.ERROR)
+        log_level = getattr(settings, "LOGLEVEL", logging.ERROR)
         logging.basicConfig(
             level=log_level,
-            format='%(asctime)s [%(levelname)s] %(message)s',
-            datefmt='%a, %d %b %Y %H:%M:%S',
+            format="%(asctime)s [%(levelname)s] %(message)s",
+            datefmt="%a, %d %b %Y %H:%M:%S",
         )
         # Bootstrap exit code.
         self.exiting = False
@@ -96,19 +119,19 @@ class WillBot(EmailMixin, StorageMixin, ScheduleMixin, PubSubMixin, SleepMixin,
 
         # Add will's templates_root
         if TEMPLATES_ROOT not in full_path_template_dirs:
-            full_path_template_dirs += [TEMPLATES_ROOT, ]
+            full_path_template_dirs += [
+                TEMPLATES_ROOT,
+            ]
 
         # Add this project's templates_root
         if PROJECT_TEMPLATE_ROOT not in full_path_template_dirs:
-            full_path_template_dirs += [PROJECT_TEMPLATE_ROOT, ]
+            full_path_template_dirs += [
+                PROJECT_TEMPLATE_ROOT,
+            ]
 
         # Convert those to dirs
         for plugin in plugins:
-            path_name = None
-            for mod in plugin.split('.'):
-                if path_name is not None:
-                    path_name = [path_name]
-                file_name, path_name, description = imp.find_module(mod, path_name)
+            path_name = find_module_path(plugin)
 
             # Add, uniquely.
             self.plugins_dirs[os.path.abspath(path_name)] = plugin
@@ -119,11 +142,12 @@ class WillBot(EmailMixin, StorageMixin, ScheduleMixin, PubSubMixin, SleepMixin,
                 )
 
         # Key by module name
-        self.plugins_dirs = dict(zip(self.plugins_dirs.values(), self.plugins_dirs.keys()))
+        self.plugins_dirs = dict(
+            zip(self.plugins_dirs.values(), self.plugins_dirs.keys())
+        )
 
         # Storing here because storage hasn't been bootstrapped yet.
-        os.environ["WILL_TEMPLATE_DIRS_PICKLED"] =\
-            ";;".join(full_path_template_dirs)
+        os.environ["WILL_TEMPLATE_DIRS_PICKLED"] = ";;".join(full_path_template_dirs)
 
     @yappi_profile(return_callback=yappi_aggregate)
     def bootstrap(self):
@@ -175,7 +199,9 @@ class WillBot(EmailMixin, StorageMixin, ScheduleMixin, PubSubMixin, SleepMixin,
 
                     errors = self.get_startup_errors()
                     if len(errors) > 0:
-                        error_message = "FYI, I ran into some problems while starting up:"
+                        error_message = (
+                            "FYI, I ran into some problems while starting up:"
+                        )
                         for err in errors:
                             error_message += "\n%s\n" % err
                         puts(colored.red(error_message))
@@ -192,7 +218,7 @@ class WillBot(EmailMixin, StorageMixin, ScheduleMixin, PubSubMixin, SleepMixin,
                                         Event(
                                             type="message.incoming.stdin",
                                             content=self.current_line,
-                                        )
+                                        ),
                                     )
                                     self.current_line = ""
                                 else:
@@ -240,20 +266,20 @@ To set your %(name)s:
         self.valid_io_backends = []
 
         if not hasattr(settings, "IO_BACKENDS"):
-            settings.IO_BACKENDS = ["will.backends.io_adapters.shell", ]
+            settings.IO_BACKENDS = [
+                "will.backends.io_adapters.shell",
+            ]
         # Try to import them all, catch errors and output trouble if we hit it.
         for b in settings.IO_BACKENDS:
             with indent(2):
                 try:
-                    path_name = None
-                    for mod in b.split('.'):
-                        if path_name is not None:
-                            path_name = [path_name]
-                        file_name, path_name, description = imp.find_module(mod, path_name)
+                    find_module_path(b)
 
                     # show_valid("%s" % b)
                     module = import_module(b)
-                    for class_name, cls in inspect.getmembers(module, predicate=inspect.isclass):
+                    for class_name, cls in inspect.getmembers(
+                        module, predicate=inspect.isclass
+                    ):
                         if (
                             hasattr(cls, "is_will_iobackend")
                             and cls.is_will_iobackend
@@ -266,7 +292,11 @@ To set your %(name)s:
                             one_valid_backend = True
                             self.valid_io_backends.append(b)
                 except EnvironmentError:
-                    puts(colored.red("  ✗ %s is missing settings, and will be disabled." % b))
+                    puts(
+                        colored.red(
+                            "  ✗ %s is missing settings, and will be disabled." % b
+                        )
+                    )
                     puts()
 
                     missing_settings = True
@@ -303,16 +333,14 @@ To set your %(name)s:
         one_valid_backend = False
 
         if not hasattr(settings, "ANALYZE_BACKENDS"):
-            settings.ANALYZE_BACKENDS = ["will.backends.analysis.nothing", ]
+            settings.ANALYZE_BACKENDS = [
+                "will.backends.analysis.nothing",
+            ]
         # Try to import them all, catch errors and output trouble if we hit it.
         for b in settings.ANALYZE_BACKENDS:
             with indent(2):
                 try:
-                    path_name = None
-                    for mod in b.split('.'):
-                        if path_name is not None:
-                            path_name = [path_name]
-                        file_name, path_name, description = imp.find_module(mod, path_name)
+                    find_module_path(b)
 
                     one_valid_backend = True
                     show_valid("%s" % b)
@@ -346,16 +374,14 @@ To set your %(name)s:
         one_valid_backend = False
 
         if not hasattr(settings, "GENERATION_BACKENDS"):
-            settings.GENERATION_BACKENDS = ["will.backends.generation.strict_regex", ]
+            settings.GENERATION_BACKENDS = [
+                "will.backends.generation.strict_regex",
+            ]
         # Try to import them all, catch errors and output trouble if we hit it.
         for b in settings.GENERATION_BACKENDS:
             with indent(2):
                 try:
-                    path_name = None
-                    for mod in b.split('.'):
-                        if path_name is not None:
-                            path_name = [path_name]
-                        file_name, path_name, description = imp.find_module(mod, path_name)
+                    find_module_path(b)
 
                     one_valid_backend = True
                     show_valid("%s" % b)
@@ -389,16 +415,14 @@ To set your %(name)s:
         one_valid_backend = False
 
         if not hasattr(settings, "EXECUTION_BACKENDS"):
-            settings.EXECUTION_BACKENDS = ["will.backends.execution.all", ]
+            settings.EXECUTION_BACKENDS = [
+                "will.backends.execution.all",
+            ]
 
         with indent(2):
             for b in settings.EXECUTION_BACKENDS:
                 try:
-                    path_name = None
-                    for mod in b.split('.'):
-                        if path_name is not None:
-                            path_name = [path_name]
-                        file_name, path_name, description = imp.find_module(mod, path_name)
+                    find_module_path(b)
 
                     one_valid_backend = True
                     show_valid("%s" % b)
@@ -429,10 +453,18 @@ To set your %(name)s:
         missing_setting_error_messages = []
         self.execution_backends = []
         self.running_execution_threads = []
-        execution_backends = getattr(settings, "EXECUTION_BACKENDS", ["will.backends.execution.all", ])
+        execution_backends = getattr(
+            settings,
+            "EXECUTION_BACKENDS",
+            [
+                "will.backends.execution.all",
+            ],
+        )
         for b in execution_backends:
             module = import_module(b)
-            for class_name, cls in inspect.getmembers(module, predicate=inspect.isclass):
+            for class_name, cls in inspect.getmembers(
+                module, predicate=inspect.isclass
+            ):
                 try:
                     if (
                         hasattr(cls, "is_will_execution_backend")
@@ -538,7 +570,10 @@ To set your %(name)s:
                     except KeyboardInterrupt:
                         pass
 
-            if hasattr(self, "running_execution_threads") and self.running_execution_threads:
+            if (
+                hasattr(self, "running_execution_threads")
+                and self.running_execution_threads
+            ):
                 for t in self.running_execution_threads:
                     try:
                         t.terminate()
@@ -547,13 +582,29 @@ To set your %(name)s:
         except:
             print("\n\n\nException while exiting!!")
             import traceback
+
             traceback.print_exc()
             sys.exit(1)
 
         while (
-            (hasattr(self, "scheduler_thread") and self.scheduler_thread and self.scheduler_thread and self.scheduler_thread.is_alive())
-            or (hasattr(self, "scheduler_thread") and self.scheduler_thread and self.bottle_thread and self.bottle_thread.is_alive())
-            or (hasattr(self, "scheduler_thread") and self.scheduler_thread and self.incoming_event_thread and self.incoming_event_thread.is_alive())
+            (
+                hasattr(self, "scheduler_thread")
+                and self.scheduler_thread
+                and self.scheduler_thread
+                and self.scheduler_thread.is_alive()
+            )
+            or (
+                hasattr(self, "scheduler_thread")
+                and self.scheduler_thread
+                and self.bottle_thread
+                and self.bottle_thread.is_alive()
+            )
+            or (
+                hasattr(self, "scheduler_thread")
+                and self.scheduler_thread
+                and self.incoming_event_thread
+                and self.incoming_event_thread.is_alive()
+            )
             # or self.stdin_listener_thread.is_alive()
             or any([t.is_alive() for t in self.io_threads])
             or any([t.is_alive() for t in self.analysis_threads])
@@ -585,7 +636,9 @@ To set your %(name)s:
                 event = self.pubsub.get_message()
                 if event and hasattr(event, "type"):
                     now = datetime.datetime.now()
-                    logging.info("%s - %s" % (event.type, event.original_incoming_event_hash))
+                    logging.info(
+                        "%s - %s" % (event.type, event.original_incoming_event_hash)
+                    )
                     logging.debug("\n\n *** Event (%s): %s\n\n" % (event.type, event))
 
                     # TODO: Order by most common.
@@ -595,24 +648,39 @@ To set your %(name)s:
 
                         analysis_threads[event.original_incoming_event_hash] = {
                             "count": 0,
-                            "timeout_end": now + datetime.timedelta(seconds=self.analysis_timeout / 1000),
+                            "timeout_end": now
+                            + datetime.timedelta(seconds=self.analysis_timeout / 1000),
                             "original_incoming_event": event,
                             "working_event": event,
                         }
-                        self.pubsub.publish("analysis.start", event.data.original_incoming_event, reference_message=event)
+                        self.pubsub.publish(
+                            "analysis.start",
+                            event.data.original_incoming_event,
+                            reference_message=event,
+                        )
 
                     elif event.type == "analysis.complete":
                         q = analysis_threads[event.original_incoming_event_hash]
                         q["working_event"].update({"analysis": event.data})
                         q["count"] += 1
-                        logging.info("Analysis for %s:  %s/%s" % (event.original_incoming_event_hash, q["count"], num_analysis_threads))
+                        logging.info(
+                            "Analysis for %s:  %s/%s"
+                            % (
+                                event.original_incoming_event_hash,
+                                q["count"],
+                                num_analysis_threads,
+                            )
+                        )
 
                         if q["count"] >= num_analysis_threads or now > q["timeout_end"]:
                             # done, move on.
                             generation_threads[event.original_incoming_event_hash] = {
                                 "count": 0,
                                 "timeout_end": (
-                                    now + datetime.timedelta(seconds=self.generation_timeout / 1000)
+                                    now
+                                    + datetime.timedelta(
+                                        seconds=self.generation_timeout / 1000
+                                    )
                                 ),
                                 "original_incoming_event": q["original_incoming_event"],
                                 "working_event": q["working_event"],
@@ -621,7 +689,11 @@ To set your %(name)s:
                                 del analysis_threads[event.original_incoming_event_hash]
                             except:
                                 pass
-                            self.pubsub.publish("generation.start", q["working_event"], reference_message=q["original_incoming_event"])
+                            self.pubsub.publish(
+                                "generation.start",
+                                q["working_event"],
+                                reference_message=q["original_incoming_event"],
+                            )
 
                     elif event.type == "generation.complete":
                         q = generation_threads[event.original_incoming_event_hash]
@@ -631,50 +703,78 @@ To set your %(name)s:
                             for d in event.data:
                                 q["working_event"].generation_options.append(d)
                         q["count"] += 1
-                        logging.info("Generation for %s:  %s/%s" % (event.original_incoming_event_hash, q["count"], num_generation_threads))
+                        logging.info(
+                            "Generation for %s:  %s/%s"
+                            % (
+                                event.original_incoming_event_hash,
+                                q["count"],
+                                num_generation_threads,
+                            )
+                        )
 
-                        if q["count"] >= num_generation_threads or now > q["timeout_end"]:
+                        if (
+                            q["count"] >= num_generation_threads
+                            or now > q["timeout_end"]
+                        ):
                             # done, move on to execution.
                             for b in self.execution_backends:
                                 try:
-                                    logging.info("Executing for %s on %s" % (b, event.original_incoming_event_hash))
+                                    logging.info(
+                                        "Executing for %s on %s"
+                                        % (b, event.original_incoming_event_hash)
+                                    )
                                     b.handle_execution(q["working_event"])
                                 except:
                                     logging.critical(
-                                        "Error running %s for %s.  \n\n%s\nContinuing...\n" % (
+                                        "Error running %s for %s.  \n\n%s\nContinuing...\n"
+                                        % (
                                             b,
                                             event.original_incoming_event_hash,
-                                            traceback.format_exc()
+                                            traceback.format_exc(),
                                         )
                                     )
                                     break
                             try:
-                                del generation_threads[event.original_incoming_event_hash]
+                                del generation_threads[
+                                    event.original_incoming_event_hash
+                                ]
                             except:
                                 pass
 
                     elif event.type == "message.no_response":
-                        logging.info("Publishing no response for %s" % (event.original_incoming_event_hash,))
+                        logging.info(
+                            "Publishing no response for %s"
+                            % (event.original_incoming_event_hash,)
+                        )
                         logging.info(event.data.__dict__)
                         try:
-                            self.publish("message.outgoing.%s" % event.data.backend, event)
+                            self.publish(
+                                "message.outgoing.%s" % event.data.backend, event
+                            )
                         except:
                             logging.critical(
-                                "Error publishing no_response for %s.  \n\n%s\nContinuing...\n" % (
+                                "Error publishing no_response for %s.  \n\n%s\nContinuing...\n"
+                                % (
                                     event.original_incoming_event_hash,
-                                    traceback.format_exc()
+                                    traceback.format_exc(),
                                 )
                             )
                             pass
                     elif event.type == "message.not_allowed":
-                        logging.info("Publishing not allowed for %s" % (event.original_incoming_event_hash,))
+                        logging.info(
+                            "Publishing not allowed for %s"
+                            % (event.original_incoming_event_hash,)
+                        )
                         try:
-                            self.publish("message.outgoing.%s" % event.data.backend, event)
+                            self.publish(
+                                "message.outgoing.%s" % event.data.backend, event
+                            )
                         except:
                             logging.critical(
-                                "Error publishing not_allowed for %s.  \n\n%s\nContinuing...\n" % (
+                                "Error publishing not_allowed for %s.  \n\n%s\nContinuing...\n"
+                                % (
                                     event.original_incoming_event_hash,
-                                    traceback.format_exc()
+                                    traceback.format_exc(),
                                 )
                             )
                             pass
@@ -752,7 +852,7 @@ To set your %(name)s:
                     meta["start_hour"],
                     meta["end_hour"],
                     meta["day_of_week"],
-                    meta["num_times_per_day"]
+                    meta["num_times_per_day"],
                 )
             bootstrapped = True
         except Exception as e:
@@ -771,14 +871,22 @@ To set your %(name)s:
                 bottle_route_args = {}
                 for k, v in instantiated_fn.will_fn_metadata.items():
                     if "bottle_" in k and k != "bottle_route":
-                        bottle_route_args[k[len("bottle_"):]] = v
-                bottle.route(instantiated_fn.will_fn_metadata["bottle_route"], **bottle_route_args)(instantiated_fn)
+                        bottle_route_args[k[len("bottle_") :]] = v
+                bottle.route(
+                    instantiated_fn.will_fn_metadata["bottle_route"],
+                    **bottle_route_args
+                )(instantiated_fn)
             bootstrapped = True
         except Exception as e:
             self.startup_error("Error bootstrapping bottle", e)
         if bootstrapped:
             show_valid("Web server started at %s." % (settings.PUBLIC_URL,))
-            bottle.run(host='0.0.0.0', port=settings.HTTPSERVER_PORT, server='cherrypy', quiet=True)
+            bottle.run(
+                host="0.0.0.0",
+                port=settings.HTTPSERVER_PORT,
+                server="cherrypy",
+                quiet=True,
+            )
 
     @yappi_profile(return_callback=yappi_aggregate)
     def bootstrap_io(self):
@@ -789,7 +897,9 @@ To set your %(name)s:
         self.stdin_io_backends = []
         for b in self.valid_io_backends:
             module = import_module(b)
-            for class_name, cls in inspect.getmembers(module, predicate=inspect.isclass):
+            for class_name, cls in inspect.getmembers(
+                module, predicate=inspect.isclass
+            ):
                 try:
                     if (
                         hasattr(cls, "is_will_iobackend")
@@ -808,12 +918,7 @@ To set your %(name)s:
                             self.has_stdin_io_backend = True
                             self.io_threads.append(thread)
                         else:
-                            thread = Process(
-                                target=c._start,
-                                args=(
-                                    b,
-                                )
-                            )
+                            thread = Process(target=c._start, args=(b,))
                             thread.start()
                             self.io_threads.append(thread)
 
@@ -831,7 +936,9 @@ To set your %(name)s:
 
         for b in settings.ANALYZE_BACKENDS:
             module = import_module(b)
-            for class_name, cls in inspect.getmembers(module, predicate=inspect.isclass):
+            for class_name, cls in inspect.getmembers(
+                module, predicate=inspect.isclass
+            ):
                 try:
                     if (
                         hasattr(cls, "is_will_analysisbackend")
@@ -860,7 +967,9 @@ To set your %(name)s:
 
         for b in settings.GENERATION_BACKENDS:
             module = import_module(b)
-            for class_name, cls in inspect.getmembers(module, predicate=inspect.isclass):
+            for class_name, cls in inspect.getmembers(
+                module, predicate=inspect.isclass
+            ):
                 try:
                     if (
                         hasattr(cls, "is_will_generationbackend")
@@ -914,11 +1023,17 @@ To set your %(name)s:
                                 # Don't even *try* to load a blacklisted module.
                                 if not blacklisted:
                                     try:
-                                        plugin_modules[full_module_name] = imp.load_source(module_name, module_path)
+                                        plugin_modules[full_module_name] = load_source(
+                                            module_name, module_path
+                                        )
 
                                         parent_root = os.path.join(root, "__init__.py")
-                                        parent = imp.load_source(parent_mod, parent_root)
-                                        parent_help_text = getattr(parent, "MODULE_DESCRIPTION", parent_help_text)
+                                        parent = load_source(parent_mod, parent_root)
+                                        parent_help_text = getattr(
+                                            parent,
+                                            "MODULE_DESCRIPTION",
+                                            parent_help_text,
+                                        )
                                     except:
                                         # If it's blacklisted, don't worry if this blows up.
                                         if blacklisted:
@@ -936,27 +1051,51 @@ To set your %(name)s:
                                     "blacklisted": blacklisted,
                                 }
                             except Exception as e:
-                                self.startup_error("Error loading %s" % (module_path,), e)
+                                self.startup_error(
+                                    "Error loading %s" % (module_path,), e
+                                )
 
                 self.plugins = []
                 for name, module in plugin_modules.items():
                     try:
-                        for class_name, cls in inspect.getmembers(module, predicate=inspect.isclass):
+                        for class_name, cls in inspect.getmembers(
+                            module, predicate=inspect.isclass
+                        ):
                             try:
-                                if hasattr(cls, "is_will_plugin") and cls.is_will_plugin and class_name != "WillPlugin":
-                                    self.plugins.append({
-                                        "name": class_name,
-                                        "class": cls,
-                                        "module": module,
-                                        "full_module_name": name,
-                                        "parent_name": plugin_modules_library[name]["parent_name"],
-                                        "parent_path": plugin_modules_library[name]["file_path"],
-                                        "parent_module_name": plugin_modules_library[name]["parent_module_name"],
-                                        "parent_help_text": plugin_modules_library[name]["parent_help_text"],
-                                        "blacklisted": plugin_modules_library[name]["blacklisted"],
-                                    })
+                                if (
+                                    hasattr(cls, "is_will_plugin")
+                                    and cls.is_will_plugin
+                                    and class_name != "WillPlugin"
+                                ):
+                                    self.plugins.append(
+                                        {
+                                            "name": class_name,
+                                            "class": cls,
+                                            "module": module,
+                                            "full_module_name": name,
+                                            "parent_name": plugin_modules_library[name][
+                                                "parent_name"
+                                            ],
+                                            "parent_path": plugin_modules_library[name][
+                                                "file_path"
+                                            ],
+                                            "parent_module_name": plugin_modules_library[
+                                                name
+                                            ][
+                                                "parent_module_name"
+                                            ],
+                                            "parent_help_text": plugin_modules_library[
+                                                name
+                                            ]["parent_help_text"],
+                                            "blacklisted": plugin_modules_library[name][
+                                                "blacklisted"
+                                            ],
+                                        }
+                                    )
                             except Exception as e:
-                                self.startup_error("Error bootstrapping %s" % (class_name,), e)
+                                self.startup_error(
+                                    "Error bootstrapping %s" % (class_name,), e
+                                )
                     except Exception as e:
                         self.startup_error("Error bootstrapping %s" % (name,), e)
 
@@ -980,8 +1119,8 @@ To set your %(name)s:
                         friendly_name = "%(parent_help_text)s " % plugin_info
                         module_name = " %(parent_name)s" % plugin_info
                         # Justify
-                        friendly_name = friendly_name.ljust(50, '-')
-                        module_name = module_name.rjust(40, '-')
+                        friendly_name = friendly_name.ljust(50, "-")
+                        module_name = module_name.rjust(40, "-")
                         puts("")
                         puts("%s%s" % (friendly_name, module_name))
 
@@ -998,7 +1137,8 @@ To set your %(name)s:
                             plugin_instances = {}
                             for function_name, fn in inspect.getmembers(
                                 plugin_info["class"],
-                                predicate=lambda x: inspect.ismethod(x) or inspect.isfunction(x)
+                                predicate=lambda x: inspect.ismethod(x)
+                                or inspect.isfunction(x),
                             ):
                                 try:
                                     # Check for required_settings
@@ -1009,7 +1149,9 @@ To set your %(name)s:
                                                 plugin_warnings.append(meta["warnings"])
                                             if "required_settings" in meta:
                                                 for s in meta["required_settings"]:
-                                                    self.required_settings_from_plugins[s] = {
+                                                    self.required_settings_from_plugins[
+                                                        s
+                                                    ] = {
                                                         "plugin_name": plugin_name,
                                                         "function_name": function_name,
                                                         "setting_name": s,
@@ -1024,65 +1166,128 @@ To set your %(name)s:
                                                 if not meta["case_sensitive"]:
                                                     regex = "(?i)%s" % regex
                                                 help_regex = meta["listener_regex"]
-                                                if meta["listens_only_to_direct_mentions"]:
-                                                    help_regex = "@%s %s" % (settings.WILL_HANDLE, help_regex)
-                                                self.all_listener_regexes.append(help_regex)
+                                                if meta[
+                                                    "listens_only_to_direct_mentions"
+                                                ]:
+                                                    help_regex = "@%s %s" % (
+                                                        settings.WILL_HANDLE,
+                                                        help_regex,
+                                                    )
+                                                self.all_listener_regexes.append(
+                                                    help_regex
+                                                )
                                                 if meta["__doc__"]:
-                                                    pht = plugin_info.get("parent_help_text", None)
+                                                    pht = plugin_info.get(
+                                                        "parent_help_text", None
+                                                    )
                                                     if pht:
                                                         if pht in self.help_modules:
-                                                            self.help_modules[pht].append(u"%s" % meta["__doc__"])
+                                                            self.help_modules[
+                                                                pht
+                                                            ].append(
+                                                                "%s" % meta["__doc__"]
+                                                            )
                                                         else:
-                                                            self.help_modules[pht] = [u"%s" % meta["__doc__"]]
+                                                            self.help_modules[pht] = [
+                                                                "%s" % meta["__doc__"]
+                                                            ]
                                                     else:
-                                                        self.help_modules[OTHER_HELP_HEADING].append(u"%s" % meta["__doc__"])
+                                                        self.help_modules[
+                                                            OTHER_HELP_HEADING
+                                                        ].append("%s" % meta["__doc__"])
                                                 if meta["multiline"]:
-                                                    compiled_regex = re.compile(regex, re.MULTILINE | re.DOTALL)
+                                                    compiled_regex = re.compile(
+                                                        regex, re.MULTILINE | re.DOTALL
+                                                    )
                                                 else:
                                                     compiled_regex = re.compile(regex)
 
-                                                if plugin_info["class"] in plugin_instances:
-                                                    instance = plugin_instances[plugin_info["class"]]
+                                                if (
+                                                    plugin_info["class"]
+                                                    in plugin_instances
+                                                ):
+                                                    instance = plugin_instances[
+                                                        plugin_info["class"]
+                                                    ]
                                                 else:
-                                                    instance = plugin_info["class"](bot=self)
-                                                    plugin_instances[plugin_info["class"]] = instance
+                                                    instance = plugin_info["class"](
+                                                        bot=self
+                                                    )
+                                                    plugin_instances[
+                                                        plugin_info["class"]
+                                                    ] = instance
 
-                                                full_method_name = "%s.%s" % (plugin_info["name"], function_name)
+                                                full_method_name = "%s.%s" % (
+                                                    plugin_info["name"],
+                                                    function_name,
+                                                )
                                                 cleaned_info = copy.copy(plugin_info)
                                                 del cleaned_info["module"]
                                                 del cleaned_info["class"]
-                                                self.message_listeners[full_method_name] = {
+                                                self.message_listeners[
+                                                    full_method_name
+                                                ] = {
                                                     "full_method_name": full_method_name,
                                                     "function_name": function_name,
                                                     "class_name": plugin_info["name"],
-                                                    "regex_pattern": meta["listener_regex"],
+                                                    "regex_pattern": meta[
+                                                        "listener_regex"
+                                                    ],
                                                     "regex": compiled_regex,
-                                                    "fn": getattr(instance, function_name),
+                                                    "fn": getattr(
+                                                        instance, function_name
+                                                    ),
                                                     "args": meta["listener_args"],
-                                                    "include_me": meta["listener_includes_me"],
-                                                    "case_sensitive": meta["case_sensitive"],
+                                                    "include_me": meta[
+                                                        "listener_includes_me"
+                                                    ],
+                                                    "case_sensitive": meta[
+                                                        "case_sensitive"
+                                                    ],
                                                     "multiline": meta["multiline"],
-                                                    "direct_mentions_only": meta["listens_only_to_direct_mentions"],
-                                                    "admin_only": meta["listens_only_to_admin"],
+                                                    "direct_mentions_only": meta[
+                                                        "listens_only_to_direct_mentions"
+                                                    ],
+                                                    "admin_only": meta[
+                                                        "listens_only_to_admin"
+                                                    ],
                                                     "acl": meta["listeners_acl"],
                                                     "plugin_info": cleaned_info,
                                                 }
                                                 if meta["listener_includes_me"]:
-                                                    self.some_listeners_include_me = True
-                                            elif "periodic_task" in meta and meta["periodic_task"]:
+                                                    self.some_listeners_include_me = (
+                                                        True
+                                                    )
+                                            elif (
+                                                "periodic_task" in meta
+                                                and meta["periodic_task"]
+                                            ):
                                                 # puts("- %s" % function_name)
-                                                self.periodic_tasks.append((plugin_info, fn, function_name))
-                                            elif "random_task" in meta and meta["random_task"]:
+                                                self.periodic_tasks.append(
+                                                    (plugin_info, fn, function_name)
+                                                )
+                                            elif (
+                                                "random_task" in meta
+                                                and meta["random_task"]
+                                            ):
                                                 # puts("- %s" % function_name)
-                                                self.random_tasks.append((plugin_info, fn, function_name))
+                                                self.random_tasks.append(
+                                                    (plugin_info, fn, function_name)
+                                                )
                                             elif "bottle_route" in meta:
                                                 # puts("- %s" % function_name)
-                                                self.bottle_routes.append((plugin_info["class"], function_name))
+                                                self.bottle_routes.append(
+                                                    (
+                                                        plugin_info["class"],
+                                                        function_name,
+                                                    )
+                                                )
 
                                 except Exception:
                                     error(plugin_name)
                                     self.startup_error(
-                                        "Error bootstrapping %s.%s" % (
+                                        "Error bootstrapping %s.%s"
+                                        % (
                                             plugin_info["class"],
                                             function_name,
                                         )
@@ -1094,6 +1299,8 @@ To set your %(name)s:
                             else:
                                 show_valid(plugin_name)
                 except Exception as e:
-                    self.startup_error("Error bootstrapping %s" % (plugin_info["class"],), e)
+                    self.startup_error(
+                        "Error bootstrapping %s" % (plugin_info["class"],), e
+                    )
             self.save("all_listener_regexes", self.all_listener_regexes)
         puts("")

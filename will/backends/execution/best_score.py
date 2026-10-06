@@ -1,4 +1,3 @@
-import imp
 import logging
 import traceback
 import requests
@@ -17,7 +16,10 @@ class BestScoreBackend(ExecutionBackend):
             # TODO: Fix this to properly fingerprint
             return option.context["say_content"]
         else:
-            return "%s - %s" % (option.context.plugin_info["full_module_name"], option.context.full_method_name)
+            return "%s - %s" % (
+                option.context.plugin_info["full_module_name"],
+                option.context.full_method_name,
+            )
 
     def handle_execution(self, message):
         published_list = []
@@ -48,8 +50,6 @@ class BestScoreBackend(ExecutionBackend):
                 return {}
             except:
                 logging.critical(
-                    "Error running %s.  \n\n%s\nContinuing...\n" % (
-                        message,
-                        traceback.format_exc()
-                    )
+                    "Error running %s.  \n\n%s\nContinuing...\n"
+                    % (message, traceback.format_exc())
                 )

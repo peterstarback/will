@@ -1,11 +1,11 @@
 import logging
 import datetime
-import imp
 import time
 import traceback
 import threading
 
 from will.mixins import ScheduleMixin, PluginModulesLibraryMixin
+from will.utils import load_source
 
 
 class Scheduler(ScheduleMixin, PluginModulesLibraryMixin):
@@ -74,12 +74,14 @@ class Scheduler(ScheduleMixin, PluginModulesLibraryMixin):
                         "Error running task %s.  \n\n%s\n"
                         "Trying to delete it and recover...\n",
                         item,
-                        traceback.format_exc()
+                        traceback.format_exc(),
                     )
 
                 if running_task:
                     try:
-                        self.bot.remove_from_schedule(item["hash"], periodic_list=periodic_list)
+                        self.bot.remove_from_schedule(
+                            item["hash"], periodic_list=periodic_list
+                        )
                     except:
                         logging.critical(
                             "Unable to remove task. Leaving it in, you'll have to clean it out by hand."
@@ -93,7 +95,10 @@ class Scheduler(ScheduleMixin, PluginModulesLibraryMixin):
         if not hasattr(self, "last_random_schedule"):
             self.last_random_schedule = self.bot.load("last_random_schedule")
 
-        if self.last_random_schedule is None or self.last_random_schedule.day != now.day:
+        if (
+            self.last_random_schedule is None
+            or self.last_random_schedule.day != now.day
+        ):
             self.bot.save("last_random_schedule", now)
             self.last_random_schedule = now
             self._clear_random_tasks()
@@ -106,16 +111,22 @@ class Scheduler(ScheduleMixin, PluginModulesLibraryMixin):
                     meta["start_hour"],
                     meta["end_hour"],
                     meta["day_of_week"],
-                    meta["num_times_per_day"]
+                    meta["num_times_per_day"],
                 )
         try:
-            if not self.bot.load("scheduler_add_lock", False) or not self.bot.load("scheduler_lock", False):
+            if not self.bot.load("scheduler_add_lock", False) or not self.bot.load(
+                "scheduler_lock", False
+            ):
                 self.bot.save("scheduler_lock", True)
-                self._run_applicable_actions_in_list(now,)
+                self._run_applicable_actions_in_list(
+                    now,
+                )
                 self._run_applicable_actions_in_list(now, periodic_list=True)
                 self.bot.save("scheduler_lock", False)
         except:
-            logging.critical("Scheduler run blew up.\n\n%s\nContinuing...\n", traceback.format_exc())
+            logging.critical(
+                "Scheduler run blew up.\n\n%s\nContinuing...\n", traceback.format_exc()
+            )
 
     def run_action(self, task):
 
@@ -124,11 +135,13 @@ class Scheduler(ScheduleMixin, PluginModulesLibraryMixin):
             # self.bot.send_room_message(task["room"]["room_id"], task["content"], *task["args"], **task["kwargs"])
         elif task["type"] == "direct_message":
             user = self.bot.get_user_by_jid(task["target_jid"])
-            self.bot.send_direct_message(user["hipchat_id"], task["content"], *task["args"], **task["kwargs"])
+            self.bot.send_direct_message(
+                user["hipchat_id"], task["content"], *task["args"], **task["kwargs"]
+            )
         elif task["type"] == "periodic_task":
             # Run the task
             module_info = self.plugin_modules_library[task["module_name"]]
-            module = imp.load_source(module_info["name"], module_info["file_path"])
+            module = load_source(module_info["name"], module_info["file_path"])
             cls = getattr(module, task["class_name"])
             fn = getattr(cls(), task["function_name"])
 
@@ -142,12 +155,12 @@ class Scheduler(ScheduleMixin, PluginModulesLibraryMixin):
                 task["function_name"],
                 task["sched_args"],
                 task["sched_kwargs"],
-                ignore_scheduler_lock=True
+                ignore_scheduler_lock=True,
             )
         elif task["type"] == "random_task":
             # Run the task
             module_info = self.plugin_modules_library[task["module_name"]]
-            module = imp.load_source(module_info["name"], module_info["file_path"])
+            module = load_source(module_info["name"], module_info["file_path"])
             cls = getattr(module, task["class_name"])
             fn = getattr(cls(), task["function_name"])
 
