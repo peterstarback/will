@@ -21,7 +21,8 @@ pyasn1==0.1.7
 pycrypto==2.6.1
 pygerduty==0.28
 pytz==2017.2
-PyYAML==5.4
+PyYAML==5.4; python_version < "3.8"
+PyYAML==6.0.3; python_version >= "3.8"
 regex==2017.9.23
 redis==5.0.0b1
 requests==2.20.0
