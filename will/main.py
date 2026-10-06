@@ -889,10 +889,11 @@ To set your %(name)s:
             self.startup_error("Error bootstrapping bottle", e)
         if bootstrapped:
             show_valid("Web server started at %s." % (settings.PUBLIC_URL,))
+            bottle_server = "cheroot" if sys.version_info >= (3, 8) else "cherrypy"
             bottle.run(
                 host="0.0.0.0",
                 port=settings.HTTPSERVER_PORT,
-                server="cherrypy",
+                server=bottle_server,
                 quiet=True,
             )
 
