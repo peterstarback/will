@@ -1,5 +1,6 @@
 APScheduler==2.1.2
-beautifulsoup4==4.6.0
+beautifulsoup4==4.6.0; python_version < "3.8"
+beautifulsoup4==4.15.0; python_version >= "3.8"
 bottle==0.12.25; python_version < "3.13"
 bottle==0.13.4; python_version >= "3.13"
 CherryPy==8.9.1; python_version < "3.8"
