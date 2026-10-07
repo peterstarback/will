@@ -6,13 +6,15 @@ CherryPy==8.9.1; python_version < "3.8"
 cheroot==11.1.2; python_version >= "3.8"
 clint==0.3.7
 dill==0.2.1
-dnspython==1.15.0
+dnspython==1.15.0; python_version < "3.10"
+dnspython==2.8.0; python_version >= "3.10"
 fuzzywuzzy==0.15.1
 Jinja2==2.11.3; python_version < "3.8"
 Jinja2==3.1.6; python_version >= "3.8"
 Markdown==2.3.1; python_version < "3.11"
 Markdown==3.11.0; python_version >= "3.11"
-markdownify==0.4.1
+markdownify==0.4.1; python_version < "3.8"
+markdownify==1.2.3; python_version >= "3.8"
 MarkupSafe==0.23; python_version < "3.8"
 MarkupSafe==3.0.3; python_version >= "3.8"
 # Temporary fork of natural, until python 3 support is merged: https://github.com/tehmaze/natural/pull/13
@@ -22,8 +24,10 @@ parsedatetime==1.1.2
 python-Levenshtein==0.12.0; python_version < "3.9"
 python-Levenshtein==0.26.1; python_version >= "3.9" and python_version < "3.10"
 python-Levenshtein==0.27.5; python_version >= "3.10"
-pyasn1-modules==0.0.5
-pyasn1==0.1.7
+pyasn1-modules==0.0.5; python_version < "3.8"
+pyasn1-modules==0.4.2; python_version >= "3.8"
+pyasn1==0.1.7; python_version < "3.8"
+pyasn1==0.6.4; python_version >= "3.8"
 pycrypto==2.6.1; python_version < "3.8"
 pycryptodome==3.24.0; python_version >= "3.8"
 pygerduty==0.28; python_version < "3.8"

@@ -33,11 +33,16 @@ MAX_MESSAGE_SIZE = 4031
 class SlackMarkdownConverter(MarkdownConverter):
     "Extended Markdown converter"
 
-    def convert_strong(self, _, text):  # pylint: disable=no-self-use
+    class Options(MarkdownConverter.Options):
+        # markdownify >= 1.0 escapes literal "*" by default; Slack uses
+        # asterisks for bold, so keep them unescaped like the old 0.4.1 behavior.
+        escape_asterisks = False
+
+    def convert_strong(self, _, text, parent_tags=None):  # pylint: disable=no-self-use
         "Normal markup is incorrect for Slack"
         return "*%s*" % text if text else ""
 
-    def convert_a(self, el, text):
+    def convert_a(self, el, text, parent_tags=None):
         "dress up <a> links for Slack"
         href = el.get("href")
         title = el.get("title")
